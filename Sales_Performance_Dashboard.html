@@ -1,0 +1,99 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Sales Performance Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Sales Performance Dashboard</h1>
+
+    <input type="file" id="fileInput" accept=".json">
+    <div id="dashboard">
+        <div id="revenueCostChart" style="width: 100%; height: 400px;"></div>
+        <div id="unitsSoldChart" style="width: 100%; height: 400px;"></div>
+        <div id="priorityChart" style="width: 100%; height: 400px;"></div>
+        <div id="profitMarginChart" style="width: 100%; height: 400px;"></div>
+        <div id="shippingDelayChart" style="width: 100%; height: 400px;"></div>
+    </div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', handleFile);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = JSON.parse(e.target.result);
+                    createDashboard(data);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function createDashboard(data) {
+            const regions = [...new Set(data.map(item => item.Region))];
+            const itemTypes = [...new Set(data.map(item => item['Item Type']))];
+            const priorities = [...new Set(data.map(item => item['Order Priority']))];
+
+            // Revenue vs. Cost by Region
+            const regionRevenue = regions.map(region => {
+                return data.filter(d => d.Region === region).reduce((sum, d) => sum + d['Total Revenue'], 0);
+            });
+            const regionCost = regions.map(region => {
+                return data.filter(d => d.Region === region).reduce((sum, d) => sum + d['Total Cost'], 0);
+            });
+
+            Plotly.newPlot('revenueCostChart', [
+                { x: regions, y: regionRevenue, name: 'Revenue', type: 'bar' },
+                { x: regions, y: regionCost, name: 'Cost', type: 'bar' }
+            ], { title: 'Total Revenue vs. Total Cost by Region', barmode: 'group' });
+
+            // Units Sold by Item Type
+            const unitsSold = itemTypes.map(type => {
+                return data.filter(d => d['Item Type'] === type).reduce((sum, d) => sum + d['Units Sold'], 0);
+            });
+
+            Plotly.newPlot('unitsSoldChart', [{
+                x: itemTypes, y: unitsSold, type: 'bar', marker: { color: 'orange' }
+            }], { title: 'Units Sold by Item Type' });
+
+            // Order Priority Analysis
+            const priorityCounts = priorities.map(priority => {
+                return data.filter(d => d['Order Priority'] === priority).length;
+            });
+
+            Plotly.newPlot('priorityChart', [{
+                labels: priorities, values: priorityCounts, type: 'pie'
+            }], { title: 'Order Priority Distribution' });
+
+            // Profit Margin Over Time
+            const dates = [...new Set(data.map(item => item['Order Date']))].sort();
+            const profitMargins = dates.map(date => {
+                const dayData = data.filter(d => d['Order Date'] === date);
+                const totalRevenue = dayData.reduce((sum, d) => sum + d['Total Revenue'], 0);
+                const totalProfit = dayData.reduce((sum, d) => sum + d['Total Profit'], 0);
+                return totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+            });
+
+            Plotly.newPlot('profitMarginChart', [{
+                x: dates, y: profitMargins, type: 'scatter', mode: 'lines+markers', line: { color: 'green' }
+            }], { title: 'Profit Margin Over Time', xaxis: { title: 'Date' }, yaxis: { title: 'Profit Margin (%)' } });
+
+            // Shipping Delay Analysis
+            const delays = data.map(d => {
+                const orderDate = new Date(d['Order Date']);
+                const shipDate = new Date(d['Ship Date']);
+                return (shipDate - orderDate) / (1000 * 60 * 60 * 24); // Days
+            });
+
+            Plotly.newPlot('shippingDelayChart', [{
+                x: delays, type: 'histogram', marker: { color: 'blue' }
+            }], { title: 'Shipping Delay Distribution', xaxis: { title: 'Delay (Days)' } });
+        }
+    </script>
+</body>
+</html>
